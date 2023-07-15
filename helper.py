@@ -1,10 +1,9 @@
 """
 helper.py
 description: include all the necessary functions that we will use for data handling / preprocessing
-important: most functions not used in main() or in other functions here, the reason is the assignment
-was in steps, which wasn't a full preprocessing workflow as I implemented after the assignment.
 author: Elior Dadon
 """
+import logging
 import pandas as pd
 from sklearn.impute import SimpleImputer  # filling missing values
 from sklearn.preprocessing import KBinsDiscretizer, MinMaxScaler  # discretization, normalization
@@ -27,126 +26,113 @@ def replace_question_marks(csv_file):
     df.to_csv("CKDF.csv", index=False)
 
 
-def calc_averages(data):
+def remove_dups(data_list):
     """
-    calculate the average of instances of numeric attributes in a dataset
-    :param data: dataset
-    :return: dictionary defined as {attribute_name:average}
+    remove duplicate rows on each dataset from data_list (inplace)
+    :param data_list: list of pandas dataframes
+    :return: None
     """
-    averages = {}
-    for col in data.columns:
-        if pd.api.types.is_numeric_dtype(data[col]):
-            averages[col] = data[col].mean()
-
-    return averages
+    for i, data in enumerate(data_list):
+        logging.info(f'Data shape before removing duplicates in dataframe {i + 1}: {data.shape}')
+        data.drop_duplicates(inplace=True)
+        logging.info(f'Data shape after removing duplicates in dataframe {i + 1}: {data.shape}')
 
 
-def calc_standard_deviation(data):
+def fill_missing_values(data_list, nominal_cols, numerical_cols, nominal_strategy, numerical_strategy):
     """
-        calculate the standard deviation of instances of numeric attributes in a dataset
-        :param data: dataset
-        :return: dictionary defined as {attribute_name:average}
-        """
-    stds = {}
-    for col in data.columns:
-        if pd.api.types.is_numeric_dtype(data[col]):
-            stds[col] = data[col].std()
-
-    return stds
-
-
-def has_missing_values(data):
+    fill missing values in nominal / numerical columns based on strategies (inplace)
+    :param data_list: list of pandas dataframes
+    :param nominal_cols: list of nominal columns
+    :param numerical_cols: list of numerical columns
+    :param nominal_strategy: filling method to apply for nominal columns
+    :param numerical_strategy: filling method to apply for numeric columns
+    :return: None
     """
-    check for missing values in each column in a database
-    :param data:
-    :return: a dictionary defined as {attribute_name:True/False} True if there are missing values and False otherwise
-    """
-    missing = {}
-    for col in data.columns:
-        if data[col].isnull().values.any():
-            missing[col] = True
+    nominal_imputer = SimpleImputer(strategy=nominal_strategy)
+    numerical_imputer = SimpleImputer(strategy=numerical_strategy)
+
+    for i, df in enumerate(data_list):
+        logging.info(f"Missing values before imputation in dataframe {i + 1}: {df.isna().sum().sum()}")
+
+        # If it's the first dataframe (training set), fit and transform
+        if i == 0:
+            df[nominal_cols] = pd.DataFrame(
+                nominal_imputer.fit_transform(df[nominal_cols]),
+                columns=nominal_cols,
+                index=df.index
+            )
+
+            df[numerical_cols] = pd.DataFrame(
+                numerical_imputer.fit_transform(df[numerical_cols]),
+                columns=numerical_cols,
+                index=df.index
+            )
+        # Otherwise, only transform (validation / test)
         else:
-            missing[col] = False
-    return missing
+            df[nominal_cols] = pd.DataFrame(
+                nominal_imputer.transform(df[nominal_cols]),
+                columns=nominal_cols,
+                index=df.index
+            )
+
+            df[numerical_cols] = pd.DataFrame(
+                numerical_imputer.transform(df[numerical_cols]),
+                columns=numerical_cols,
+                index=df.index
+            )
+
+        logging.info(f"Missing values after imputation in dataframe {i + 1}: {df.isna().sum().sum()}")
 
 
-def remove_dups(data):
-    """
-    remove duplicate rows
-    :param data: dataset
-    :return: none
-    """
-    data.drop_duplicates(inplace=True)
-
-
-def get_unique_vals(data):
-    """
-    print unique values for each attribute, mainly used to check for not valid values
-    :param data: dataset
-    :return: none
-    """
-    for col in data.columns:
-        print(f'{col} has unique values {data[col].unique()}, \n')
-
-
-def remove_col(data, col_name):
-    """
-    removes an entire column from the dataset, will not save it to a new file
-    :param col_name: column name
-    :param data: dataset
-    :return: none
-    """
-    data.drop(col_name, axis=1, inplace=True)
-
-
-def change_to_binary(data, two_options_nominal_cols):
+def change_to_binary(data_list, two_options_nominal_cols):
     """
     replacing all the nominal attributes with two options with binary 0 or 1
-    the original dataframe will be modified!
-    :param data: dataset (pandas dataframe)
+    the original dataframe will be modified.
+    :param data_list: list of datasets (pandas dataframes)
     :param two_options_nominal_cols: dictionary of the form column_name:positive_value, example: rbc:normal
-    :return: none
+    :return: None
     """
-    for col, val in two_options_nominal_cols.items():
-        data[col] = data[col].apply(lambda x: 1 if x == val else 0)  # changing to true or false
-        data[col] = data[col].astype(int)  # changing it to int 1 or 0
+    for i, data in enumerate(data_list):
+        columns_changed = []  # list to store columns which were changed
+        for col, val in two_options_nominal_cols.items():
+            data[col] = data[col].apply(lambda x: 1 if x == val else 0)  # changing to true or false
+            data[col] = data[col].astype(int)  # changing it to int 1 or 0
+            columns_changed.append(col)
+
+        logging.info(f"Columns '{', '.join(columns_changed)}' were changed to binary in dataframe number {i + 1}.")
 
 
-def fill_nominal(data, nominal_cols, fill_method):
+def scale_values(data_list, feature_cols, scaling_method):
     """
-    fill nominal attributes missing values in the dataset with the desired method (fill_method - most frequent / etc)
-    :param data:
-    :param data: dataset (pandas dataframe)
-    :param nominal_cols: list of strings where each represent a nominal attribute in data
-    :param fill_method: the method to fill the missing value
-    :return: none
+    performs scaling on the data provided, the scaling_method will determine how the scaling will be performed
+    important: the order of the datasets are important, it assuming TRAIN-VALIDATION-TEST or TRAIN-TEST or just whole
+    data, if the order is different, the behaviour will be unwanted, because we want to fit_transform on the training
+    set and use the parameters on the other sets.
+    :param data_list: list of datasets (pandas dataframes)
+    :param feature_cols: columns without the target
+    :param scaling_method: determine which scaling method to use (normalization / discretization only for now)
+    :return: True if scaling went successfully, False otherwise
     """
-    imputer = SimpleImputer(strategy=fill_method)
-    data[nominal_cols] = imputer.fit_transform(data[nominal_cols])
+    # Create the scaler outside of the loop.
+    if scaling_method == 'discretization':
+        scaler = KBinsDiscretizer(n_bins=8, encode='ordinal', strategy='uniform')
+    elif scaling_method == 'normalization':
+        scaler = MinMaxScaler()
+    else:
+        logging.warning('Scaling method provided not implemented / undefined')
+        return False
 
+    for i, data in enumerate(data_list):
+        try:
+            if i == 0:  # training data, fit_transform (or whole data if not splitted)
+                data[feature_cols] = scaler.fit_transform(data[feature_cols])
+            else:  # only transform, using the training data parameters (validation / test)
+                data[feature_cols] = scaler.transform(data[feature_cols])
+        except (ValueError, TypeError) as e:
+            logging.error(f'Error occurred during scaling (helper.scale_values function): {e}')
+            return False
 
-def fill_numerical(data, numerical_cols, fill_method):
-    """
-    fill numerical attributes missing values in the dataset with the desired method (fill_method - mean / median / etc)
-    :param data: dataset (pandas dataframe)
-    :param numerical_cols: list of strings where each represent a numerical attribute in data
-    :param fill_method: the method to fill the missing value
-    :return: none
-    """
-    imputer = SimpleImputer(strategy=fill_method)
-    # round(2) will limit the after the dot number to 2
-    data[numerical_cols] = imputer.fit_transform(data[numerical_cols]).round(2)
-
-
-def visual_correlation(data):
-    """
-    create and visualize the correlation matrix between the dataset features
-    :param data: pandas dataframe
-    :return: none
-    """
-    corr_mat = data.corr()
-    sns.heatmap(corr_mat, cmap='coolwarm')
-    plt.show()
+    return True
 
 
 def feature_selection(data):
@@ -194,6 +180,29 @@ def feature_selection(data):
     return list(features_to_keep)
 
 
+def separate_target(data, target_col='class'):
+    """
+    separate the features from the target variable
+    :param data: dataset, pandas dataframe
+    :param target_col: string, represent the target column name
+    :return: X (features), y (target)
+    """
+    y = data.pop(target_col)
+    X = data
+    return X, y
+
+
+def visual_correlation(data):
+    """
+    create and visualize the correlation matrix between the dataset features
+    :param data: pandas dataframe
+    :return: none
+    """
+    corr_mat = data.corr()
+    sns.heatmap(corr_mat, cmap='coolwarm')
+    plt.show()
+
+
 def data_histograms(data):
     """
     create histogram for each of the dataset features
@@ -209,52 +218,6 @@ def data_histograms(data):
 
     plt.tight_layout()
     plt.show()
-
-
-def data_discretization(data):
-    """
-    perform discretization on non-binary features using KBinsDiscretizer
-    :param data: pandas dataframe represents dataset
-    :return: none
-    """
-    # Choose number of bins
-    n_bins = 8
-
-    # Select non-binary numeric columns
-    numeric_cols = data.select_dtypes(include=['int64', 'float64']).columns
-    nonbinary_numeric_cols = [col for col in numeric_cols if data[col].nunique() > 2]
-
-    # Fit and transform KBinsDiscretizer to non-binary numeric columns
-    disc = KBinsDiscretizer(n_bins=n_bins, encode='ordinal', strategy='uniform')
-    X_disc = disc.fit_transform(data[nonbinary_numeric_cols])
-
-    # Replace original non-binary numeric columns with discretized versions
-    data[nonbinary_numeric_cols] = X_disc
-
-
-def normalize_numeric(data):
-    """
-    Performs normalization to the numeric features to range of [0,1]
-    :param data: pandas dataframe represents dataset
-    :return: none
-    """
-
-    # List of nominal columns
-    nominal_cols = ['sg', 'al']
-
-    # Identify binary columns (those with exactly 2 unique values)
-    binary_cols = [col for col in data.columns if data[col].nunique() == 2]
-
-    # Determine the remaining numeric columns
-    numeric_cols = [col for col in data.columns if col not in binary_cols + nominal_cols]
-
-    # Apply normalization only on the numeric columns (min/max), implemented by hand cuz of uni (could use MinMaxScaler)
-    for col in numeric_cols:
-        data[col] = (data[col] - data[col].min()) / (data[col].max() - data[col].min())
-
-    # controlling the number of decimal points, it is in comments because I don't want this piece of code
-    # to save to a new file each time. it is preferably to make this chunk in the main function.
-    # just use round(decimal=2) (2 decimal numbers or different)
 
 
 def load_data(data_path):
@@ -297,259 +260,126 @@ def split_withval(data, test_size=0.2, val_size=0.25):
     return X_train, X_val, X_test, y_train, y_val, y_test
 
 
-def preprocessing(X_train, X_test, y_train, y_test, scaling_method='normalization'):
+def preprocessing(X_train, y_train, X_test, y_test, X_val=None, y_val=None, scaling_method='normalization'):
     """
-    Perform preprocessing steps for machine learning. Validation set not included.
-    important: the function now implemented with prints along the way for understanding what happened.
-    it's not mandatory and the print statements can be removed.
+    Perform preprocessing steps for machine learning. Validation set is optional.
     :param X_train: training features
-    :param X_test: test features
     :param y_train: training target
+    :param X_test: test features
     :param y_test: test target
-    :param scaling_method: scaling method ('discretization' or 'normalization' only for now)
-    :return: preprocessed X_train, X_test, y_train, y_test (numpy arrays!)
-    """
-    # concatenate X and y for train and test sets
-    train = pd.concat([X_train, y_train], axis=1)
-    test = pd.concat([X_test, y_test], axis=1)
-    print("Training data shape:", train.shape)
-    print("Test data shape:", test.shape)
-
-    # remove duplicates
-    remove_dups(train)
-    remove_dups(test)
-    print("After removing duplicates - Training data shape:", train.shape)
-    print("After removing duplicates - Test data shape:", test.shape)
-
-    # fill nominal and numerical missing values
-    nominal_cols = train.select_dtypes(include=['object']).columns.tolist()
-    numerical_cols = train.select_dtypes(include=['int64', 'float64']).columns.tolist()
-    print("Nominal columns:", nominal_cols)
-    print("Numerical columns:", numerical_cols)
-
-    nominal_imputer = SimpleImputer(strategy='most_frequent')
-    numerical_imputer = SimpleImputer(strategy='mean')
-
-    train[nominal_cols] = pd.DataFrame(
-        nominal_imputer.fit_transform(train[nominal_cols]),
-        columns=nominal_cols,
-        index=train.index
-    )
-    print("Missing values in nominal columns after imputation - Train: ", train[nominal_cols].isnull().sum().sum())
-
-    train[numerical_cols] = pd.DataFrame(
-        numerical_imputer.fit_transform(train[numerical_cols]),
-        columns=numerical_cols,
-        index=train.index
-    )
-    print("Missing values in numerical columns after imputation - Train: ", train[numerical_cols].isnull().sum().sum())
-
-    test[nominal_cols] = pd.DataFrame(
-        nominal_imputer.transform(test[nominal_cols]),
-        columns=nominal_cols,
-        index=test.index
-    )
-    print("Missing values in nominal columns after imputation - Test: ", test[nominal_cols].isnull().sum().sum())
-
-    test[numerical_cols] = pd.DataFrame(
-        numerical_imputer.transform(test[numerical_cols]),
-        columns=numerical_cols,
-        index=test.index
-    )
-    print("Missing values in numerical columns after imputation - Test: ", test[numerical_cols].isnull().sum().sum())
-
-    # change to binary
-    two_options_nominal_cols = {col: train[col].mode()[0] for col in nominal_cols if train[col].nunique() == 2}
-    change_to_binary(train, two_options_nominal_cols)
-    change_to_binary(test, two_options_nominal_cols)
-    print("After binary transformation - Training data:\n", train.head())
-    print("After binary transformation - Test data:\n", test.head())
-
-    # define feature and target columns
-    feature_cols = [col for col in train.columns if col != 'class']
-    target_col = 'class'
-
-    # scaling
-    if scaling_method == 'discretization':
-        disc = KBinsDiscretizer(n_bins=8, encode='ordinal', strategy='uniform')
-        train[feature_cols] = disc.fit_transform(train[feature_cols])
-        test[feature_cols] = disc.transform(test[feature_cols])
-    elif scaling_method == 'normalization':
-        scaler = MinMaxScaler()
-        train[feature_cols] = scaler.fit_transform(train[feature_cols])
-        test[feature_cols] = scaler.transform(test[feature_cols])
-
-    # feature selection
-    features_to_keep = feature_selection(train)
-    train = train[features_to_keep]
-    test = test[features_to_keep]
-    print("After feature selection - Training data shape:", train.shape)
-    print("After feature selection - Test data shape:", test.shape)
-    print("Features kept:", features_to_keep)
-
-    # separating X and y
-    y_train = train.pop(target_col)
-    X_train = train
-    y_test = test.pop(target_col)
-    X_test = test
-
-    return X_train, X_test, y_train, y_test
-
-
-def preprocessing_withval(X_train, X_val, X_test, y_train, y_val, y_test, scaling_method='normalization'):
-    """
-    Perform preprocessing steps for machine learning. Validation included.
-    important: the function now implemented with prints along the way for understanding what happened.
-    it's not mandatory and the print statements can be removed.
-    :param X_train: training features
     :param X_val: validation features
-    :param X_test: test features
-    :param y_train: training target
     :param y_val: validation target
-    :param y_test: test target
     :param scaling_method: scaling method ('discretization' or 'normalization' only for now)
-    :return: preprocessed X_train, X_test, y_train, y_test (numpy arrays!)
+    :return: preprocessed provided sets (numpy arrays!)
     """
-    # concatenate X and y for train, validation and test sets
-    train = pd.concat([X_train, y_train], axis=1)
-    validation = pd.concat([X_val, y_val], axis=1)
-    test = pd.concat([X_test, y_test], axis=1)
+    logging.info('Starting data preprocessing')
+    try:
+        # concatenate X and y for train and test sets
+        train = pd.concat([X_train, y_train], axis=1)
+        validation = None if X_val is None else pd.concat([X_val, y_val], axis=1)
+        test = pd.concat([X_test, y_test], axis=1)
 
-    # remove duplicates
-    remove_dups(train)
-    remove_dups(validation)
-    remove_dups(test)
+        if validation is None:
+            data_list = [train, test]
+        else:
+            data_list = [train, validation, test]
 
-    # fill nominal and numerical missing values
-    nominal_cols = train.select_dtypes(include=['object']).columns.tolist()
-    numerical_cols = train.select_dtypes(include=['int64', 'float64']).columns.tolist()
+        # remove duplicates
+        logging.info(f'Removing duplicates activated')
+        remove_dups(data_list)
 
-    nominal_imputer = SimpleImputer(strategy='most_frequent')
-    numerical_imputer = SimpleImputer(strategy='mean')
+        # fill nominal and numerical missing values
+        nominal_cols = train.select_dtypes(include=['object']).columns.tolist()
+        numerical_cols = train.select_dtypes(include=['int64', 'float64']).columns.tolist()
+        logging.info('Starting imputation process, filling missing values. columns are:')
+        logging.info(f'nominal: {nominal_cols}')
+        logging.info(f'numerical: {numerical_cols}')
+        fill_missing_values(data_list, nominal_cols, numerical_cols,
+                            nominal_strategy='most_frequent', numerical_strategy='mean')
 
-    train[nominal_cols] = pd.DataFrame(
-        nominal_imputer.fit_transform(train[nominal_cols]),
-        columns=nominal_cols,
-        index=train.index
-    )
+        # change to binary
+        logging.info('Starting binary transformation')
+        two_options_nominal_cols = {col: train[col].mode()[0] for col in nominal_cols if train[col].nunique() == 2}
+        change_to_binary(data_list, two_options_nominal_cols)
+        logging.info(f'After binary transformation - training data:')
+        logging.info(f'{train.head()}')
 
-    train[numerical_cols] = pd.DataFrame(
-        numerical_imputer.fit_transform(train[numerical_cols]),
-        columns=numerical_cols,
-        index=train.index
-    )
+        # define feature and target columns
+        feature_cols = [col for col in train.columns if col != 'class']
+        target_col = 'class'
 
-    validation[nominal_cols] = pd.DataFrame(
-        nominal_imputer.transform(validation[nominal_cols]),
-        columns=nominal_cols,
-        index=validation.index
-    )
+        # scaling
+        if scale_values(data_list, feature_cols, scaling_method=scaling_method):
+            logging.info(f'Data scaling performed successfully, method used: {scaling_method}')
 
-    validation[numerical_cols] = pd.DataFrame(
-        numerical_imputer.transform(validation[numerical_cols]),
-        columns=numerical_cols,
-        index=validation.index
-    )
+        # unpack from data_list
+        if validation is None:
+            train, test = data_list
+        else:
+            train, validation, test = data_list
 
-    test[nominal_cols] = pd.DataFrame(
-        nominal_imputer.transform(test[nominal_cols]),
-        columns=nominal_cols,
-        index=test.index
-    )
+        # feature selection
+        logging.info('Starting feature selection')
+        features_to_keep = feature_selection(train)
+        train = train[features_to_keep]
+        if validation is not None:
+            validation = validation[features_to_keep]
+        test = test[features_to_keep]
+        logging.info(f'Feature selection performed successfully, features kept: {features_to_keep}')
 
-    test[numerical_cols] = pd.DataFrame(
-        numerical_imputer.transform(test[numerical_cols]),
-        columns=numerical_cols,
-        index=test.index
-    )
+        # separating X and y
+        X_train, y_train = separate_target(train, target_col)
+        X_test, y_test = separate_target(test, target_col)
+        if validation is not None:
+            X_val, y_val = separate_target(validation, target_col)
 
-    # change to binary
-    two_options_nominal_cols = {col: train[col].mode()[0] for col in nominal_cols if train[col].nunique() == 2}
-    change_to_binary(train, two_options_nominal_cols)
-    change_to_binary(validation, two_options_nominal_cols)
-    change_to_binary(test, two_options_nominal_cols)
+        if validation is None:
+            return X_train, y_train, X_test, y_test
+        else:
+            return X_train, y_train, X_val, y_val, X_test, y_test
 
-    # define feature and target columns
-    feature_cols = [col for col in train.columns if col != 'class']
-    target_col = 'class'
-
-    # scaling
-    if scaling_method == 'discretization':
-        disc = KBinsDiscretizer(n_bins=8, encode='ordinal', strategy='uniform')
-        train[feature_cols] = disc.fit_transform(train[feature_cols])
-        validation[feature_cols] = disc.transform(validation[feature_cols])
-        test[feature_cols] = disc.transform(test[feature_cols])
-    elif scaling_method == 'normalization':
-        scaler = MinMaxScaler()
-        train[feature_cols] = scaler.fit_transform(train[feature_cols])
-        validation[feature_cols] = scaler.transform(validation[feature_cols])
-        test[feature_cols] = scaler.transform(test[feature_cols])
-
-    # feature selection
-    features_to_keep = feature_selection(train)
-    train = train[features_to_keep]
-    validation = validation[features_to_keep]
-    test = test[features_to_keep]
-    print("After feature selection - Training data shape:", train.shape)
-    print("Features kept:", features_to_keep)
-
-    # separating X and y
-    y_train = train.pop(target_col)
-    X_train = train
-    y_val = validation.pop(target_col)
-    X_val = validation
-    y_test = test.pop(target_col)
-    X_test = test
-
-    return X_train, X_val, X_test, y_train, y_val, y_test
+    except Exception as e:
+        logging.error("Exception occurred at helper.preprocessing_whole function: ", exc_info=True)
+        raise e
 
 
 def preprocessing_whole(data, scaling_method='normalization'):
     """
     Perform preprocessing steps on whole data, mainly for unsupervised tasks.
+    important - assuming data come with no target column
     :param data: pandas dataframe
     :param scaling_method: scaling method ('discretization' or 'normalization' only for now)
     :return: preprocessed data (numpy array!)
     """
-    # remove duplicates
-    remove_dups(data)
-    print("Data shape after removing duplicates: ", data.shape)
+    logging.info('Starting preprocessing whole data')
+    try:
+        data_list = [data]
 
-    # fill nominal and numerical missing values
-    nominal_cols = data.select_dtypes(include=['object']).columns.tolist()
-    numerical_cols = data.select_dtypes(include=['int64', 'float64']).columns.tolist()
-    print("Nominal columns: ", nominal_cols)
-    print("Numerical columns: ", numerical_cols)
+        # remove duplicates
+        logging.info(f'Removing duplicates activated')
+        remove_dups(data_list)
 
-    nominal_imputer = SimpleImputer(strategy='most_frequent')
-    numerical_imputer = SimpleImputer(strategy='mean')
+        # fill nominal and numerical missing values
+        nominal_cols = data.select_dtypes(include=['object']).columns.tolist()
+        numerical_cols = data.select_dtypes(include=['int64', 'float64']).columns.tolist()
 
-    data[nominal_cols] = pd.DataFrame(
-        nominal_imputer.fit_transform(data[nominal_cols]),
-        columns=nominal_cols,
-        index=data.index
-    )
+        logging.info('Starting imputation process, filling missing values. columns are: \n')
+        logging.info(f'nominal: {nominal_cols}')
+        logging.info(f'numerical: {numerical_cols}')
+        fill_missing_values(data_list, nominal_cols, numerical_cols,
+                            nominal_strategy='most_frequent', numerical_strategy='mean')
 
-    data[numerical_cols] = pd.DataFrame(
-        numerical_imputer.fit_transform(data[numerical_cols]),
-        columns=numerical_cols,
-        index=data.index
-    )
-    print("Data after filling missing values: ")
-    print(data.head())
+        # change to binary
+        logging.info('Starting binary transformation')
+        two_options_nominal_cols = {col: data[col].mode()[0] for col in nominal_cols if data[col].nunique() == 2}
+        change_to_binary(data_list, two_options_nominal_cols)
 
-    # change to binary
-    two_options_nominal_cols = {col: data[col].mode()[0] for col in nominal_cols if data[col].nunique() == 2}
-    change_to_binary(data, two_options_nominal_cols)
-    print("Data after binary transformation: ")
-    print(data.head())
+        # scaling
+        if scale_values(data_list, data, scaling_method=scaling_method):
+            logging.info(f'Data scaling performed successfully, method used: {scaling_method}')
 
-    # scaling
-    if scaling_method == 'discretization':
-        disc = KBinsDiscretizer(n_bins=8, encode='ordinal', strategy='uniform')
-        data = disc.fit_transform(data)
-    elif scaling_method == 'normalization':
-        scaler = MinMaxScaler()
-        data = scaler.fit_transform(data)
+        return data
 
-    return data
+    except Exception as e:
+        logging.error("Exception occurred at helper.preprocessing_whole function: ", exc_info=True)
+        raise e

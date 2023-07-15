@@ -5,6 +5,7 @@ description: include all the necessary functions that we will use for neural net
 author: Elior Dadon
 """
 
+import logging
 import tensorflow as tf
 import matplotlib.pyplot as plt
 from sklearn.metrics import confusion_matrix
@@ -42,7 +43,6 @@ def run_network(train_data, train_labels, val_data, val_labels, model, epochs=10
     """
     # Train the network
     history = model.fit(train_data, train_labels, epochs=epochs, batch_size=batch_size, validation_data=(val_data, val_labels))
-
     return history
 
 
@@ -92,8 +92,6 @@ def report_misclassifications(model, test_data, test_labels):
     :param test_labels: the true labels of the test data
     :return: None
     """
-    print("== Misclassified report ==")
-
     # Get the model's predictions
     y_pred = model.predict(test_data)
     y_pred = (y_pred > 0.5).astype(int).flatten()  # Convert probabilities to class labels
@@ -101,16 +99,18 @@ def report_misclassifications(model, test_data, test_labels):
     # Find where the predictions do not match the true labels
     misclassified = np.where(test_labels != y_pred)
 
+    report = ""
     # Print the misclassified instances
     for index in misclassified[0]:
-        print(f"Instance index {index} was misclassified:")
-        print(test_data.iloc[index])
-        print(f"True label = {test_labels.iloc[index]}, Predicted label = {y_pred[index]}\n")
+        report += f'Instance index {index} was misclassified:\n'
+        report += f'{test_data.iloc[index]}\n'
+        report += f'True label = {test_labels.iloc[index]}, Predicted label = {y_pred[index]}\n'
 
     # Print confusion matrix for additional insight
     cm = confusion_matrix(test_labels, y_pred)
-    print("Confusion Matrix:")
-    print(cm)
+    report += f'Confusion Matrix:\n'
+    report += f'{cm}\n'
+    return report
 
 
 def run_eval_nn(train_data, train_labels, val_data, val_labels, test_data, test_labels, input_dim, plot_to_file=False):
@@ -125,24 +125,31 @@ def run_eval_nn(train_data, train_labels, val_data, val_labels, test_data, test_
     :param input_dim: number of features not included the target variable
     :return: none
     """
+    try:
+        # build the network
+        model = build_model(input_dim)
+        logging.info('NN model building completed successfully')
 
-    # build the network
-    model = build_model(input_dim)
+        # train the network
+        history = run_network(train_data, train_labels, val_data, val_labels, model)
+        logging.info('NN model training completed successfully')
 
-    # train the network
-    history = run_network(train_data, train_labels, val_data, val_labels, model)
+        # evaluate the model on the test data
+        test_loss, test_acc = model.evaluate(test_data, test_labels, verbose=2)
+        logging.info(f'Evaluation of NN model, Test accuracy: {test_acc}')
 
-    # evaluate the model on the test data
-    test_loss, test_acc = model.evaluate(test_data, test_labels, verbose=2)
-    print('\nTest accuracy', test_acc)
+        # report misclassified instances
+        report = report_misclassifications(model, test_data, test_labels)
+        logging.info(f'Misclassified Report:\n {report}')
 
-    # report misclassified instances
-    report_misclassifications(model, test_data, test_labels)
+        if plot_to_file:
+            # plot the model
+            plot_nn(model, 'nn_model.png', plot_to_file)
 
-    if plot_to_file:
-        # plot the model
-        plot_nn(model, 'nn_model.png', plot_to_file)
+        # plot the training history as a function of the epochs
+        plot_training_history(history)
 
-    # plot the training history as a function of the epochs
-    plot_training_history(history)
+    except Exception as e:
+        logging.error('Exception occurred', exc_info=True)
+        raise e
 

@@ -1,9 +1,9 @@
 """
 models.py
 description: include all the necessary functions that we will use for model training, prediction and evaluating
-important: most functions not used in main(), the reason is the assignment was in steps
 author: Elior Dadon
 """
+import logging
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.tree import DecisionTreeClassifier
 import matplotlib.pyplot as plt
@@ -28,17 +28,20 @@ def rand_forest(X_train, X_test, y_train):
     :return: a dictionary with all the necessary stuff for further evaluating:
     {'model': model, 'y_pred': y_pred, 'y_proba': y_proba}
     """
-    # train a Random Forest model with default hyperparameters
-    rf = RandomForestClassifier(n_estimators=10, max_depth=3, random_state=42)
-    rf.fit(X_train, y_train)
-    # make predictions on the test set
-    y_pred = rf.predict(X_test)
-    # calculate predicted probabilities for each class
-    y_proba = rf.predict_proba(X_test)
+    try:
+        # train a Random Forest model with default hyperparameters
+        rf = RandomForestClassifier(n_estimators=10, max_depth=3, random_state=42)
+        rf.fit(X_train, y_train)
+        # make predictions on the test set
+        y_pred = rf.predict(X_test)
+        # calculate predicted probabilities for each class
+        y_proba = rf.predict_proba(X_test)
 
-    rf_dict_info = {'model': rf, 'y_pred': y_pred, 'y_proba': y_proba}
-    assert isinstance(rf_dict_info, dict), f"{rf_dict_info} is not a dictionary"
-    return rf_dict_info
+        rf_dict_info = {'model': rf, 'y_pred': y_pred, 'y_proba': y_proba}
+        return rf_dict_info
+    except Exception as e:
+        logging.warning(f'Random Forest model training failed: {e}')
+        return None
 
 
 def cart_tree(X_train, X_test, y_train):
@@ -51,13 +54,17 @@ def cart_tree(X_train, X_test, y_train):
     :return: a dictionary with all the necessary stuff for further evaluating:
     {'model': model, 'X_train': X_train, 'X_test': X_test, 'y_train': y_train, 'y_test': y_test, 'y_pred': y_pred}
     """
-    cart_model = DecisionTreeClassifier(max_depth=3)
-    cart_model.fit(X_train, y_train)
-    y_pred = cart_model.predict(X_test)
-    y_proba = cart_model.predict_proba(X_test)
+    try:
+        cart_model = DecisionTreeClassifier(max_depth=3)
+        cart_model.fit(X_train, y_train)
+        y_pred = cart_model.predict(X_test)
+        y_proba = cart_model.predict_proba(X_test)
 
-    cart_dict_info = {'model': cart_model, 'y_pred': y_pred, 'y_proba': y_proba}
-    return cart_dict_info
+        cart_dict_info = {'model': cart_model, 'y_pred': y_pred, 'y_proba': y_proba}
+        return cart_dict_info
+    except Exception as e:
+        logging.warning(f'CART model training failed: {e}')
+        return None
 
 
 def naive_bayes(X_train, X_test, y_train):
@@ -69,17 +76,21 @@ def naive_bayes(X_train, X_test, y_train):
     :param y_train: training target
     :return:
     """
-    # initialize Naive Bayes model
-    nb = GaussianNB()
-    # fit the model
-    nb.fit(X_train, y_train)
-    # make predictions on test set
-    y_pred = nb.predict(X_test)
-    # calculate predicted probabilities for each class
-    y_proba = nb.predict_proba(X_test)
+    try:
+        # initialize Naive Bayes model
+        nb = GaussianNB()
+        # fit the model
+        nb.fit(X_train, y_train)
+        # make predictions on test set
+        y_pred = nb.predict(X_test)
+        # calculate predicted probabilities for each class
+        y_proba = nb.predict_proba(X_test)
 
-    nb_dict_info = {'model': nb, 'y_pred': y_pred, 'y_proba': y_proba}
-    return nb_dict_info
+        nb_dict_info = {'model': nb, 'y_pred': y_pred, 'y_proba': y_proba}
+        return nb_dict_info
+    except Exception as e:
+        logging.warning(f'Naive bayes model training failed: {e}')
+        return None
 
 
 def k_means(data, n_clusters=2):
@@ -88,22 +99,25 @@ def k_means(data, n_clusters=2):
     :param n_clusters: the number of clusters to form
     :return: cluster labels, cluster centers and the input data
     """
+    try:
+        # if data is a DataFrame and needs to be converted to a numpy array
+        if isinstance(data, pd.DataFrame):
+            data_values = data.values
+        else:
+            data_values = data
 
-    # if data is a DataFrame and needs to be converted to a numpy array
-    if isinstance(data, pd.DataFrame):
-        data_values = data.values
-    else:
-        data_values = data
+        # initialize KMeans
+        kmeans = KMeans(n_clusters=n_clusters, random_state=42)
+        # fit the data
+        kmeans.fit(data_values)
+        # get the cluster labels and cluster centers
+        labels = kmeans.labels_
+        centers = kmeans.cluster_centers_
 
-    # initialize KMeans
-    kmeans = KMeans(n_clusters=n_clusters, random_state=42)
-    # fit the data
-    kmeans.fit(data_values)
-    # get the cluster labels and cluster centers
-    labels = kmeans.labels_
-    centers = kmeans.cluster_centers_
-
-    return labels, centers, data_values
+        return labels, centers, data_values
+    except Exception as e:
+        logging.warning(f'KMeans model training failed: {e}')
+        raise e
 
 
 def k_means_evaluation(data, labels, centers, n_clusters=2):
@@ -124,10 +138,10 @@ def k_means_evaluation(data, labels, centers, n_clusters=2):
     # calculate silhouette score
     silhouette_avg = silhouette_score(data, labels)
 
-    print(f" ==== Clustering regular evaluation ==== ")
-    print(f"For n_clusters = {n_clusters}, average intra-cluster distance is : {intra_cluster_distance}")
-    print(f"For n_clusters = {n_clusters}, minimum inter-cluster distance is : {inter_cluster_distance}")
-    print(f"For n_clusters = {n_clusters}, the average silhouette_score is : {silhouette_avg}")
+    logging.info(f" ==== Clustering regular evaluation ==== ")
+    logging.info(f"For n_clusters = {n_clusters}, average intra-cluster distance is : {intra_cluster_distance}")
+    logging.info(f"For n_clusters = {n_clusters}, minimum inter-cluster distance is : {inter_cluster_distance}")
+    logging.info(f"For n_clusters = {n_clusters}, the average silhouette_score is : {silhouette_avg}")
 
     # Visualize the clusters and centroids
     plt.figure(figsize=(8, 5))
@@ -146,16 +160,15 @@ def k_means_supervised_evaluation(kmeans_labels, true_labels):
     :param true_labels: actual labels present in the dataset, assuming no conversion made to binary 0 or 1
     :return: None
     """
-
     true_labels = (true_labels == 'ckd').astype(int)
 
     accuracy = accuracy_score(true_labels, kmeans_labels)
     conf_mat = confusion_matrix(true_labels, kmeans_labels)
 
-    print(f"==== Clustering supervised evaluation ==== ")
-    print(f'Accuracy: {accuracy}')
-    print('Confusion matrix:')
-    print(conf_mat)
+    logging.info(f"==== Clustering supervised evaluation ==== ")
+    logging.info(f'Accuracy: {accuracy}')
+    logging.info('Confusion matrix:')
+    logging.info(conf_mat)
 
 
 def evaluate_accuracy(y_test, y_pred, model_name):
@@ -167,7 +180,7 @@ def evaluate_accuracy(y_test, y_pred, model_name):
     :return: none
     """
     accuracy = accuracy_score(y_test, y_pred)
-    print(model_name + ' Accuracy:', accuracy)
+    logging.info(f'{model_name} accuracy: {accuracy}')
 
 
 def cl_report(y_test, y_pred, model_name):
@@ -178,7 +191,7 @@ def cl_report(y_test, y_pred, model_name):
     :param model_name: the model name
     :return: none
     """
-    print(model_name + ' classification report:' '\n' + classification_report(y_test, y_pred))
+    logging.info(f'{model_name} classification report: \n {classification_report(y_test, y_pred)}')
 
 
 def plot_roc(model_info, model_name):
@@ -188,9 +201,6 @@ def plot_roc(model_info, model_name):
     :param model_info: dictionary with all the necessary stuff for the roc curve process
     :return: none
     """
-    # Get the AUC score for the Random Forest model
-    auc_score = roc_auc_score(model_info['y_test'], model_info['y_proba'][:, 1])
-
     # Plot the ROC curve for the Random Forest model
     fpr, tpr, _ = roc_curve(model_info['y_test'], model_info['y_proba'][:, 1])
     plt.plot(fpr, tpr)
@@ -211,8 +221,7 @@ def confusion_mat(y_test, y_pred, model_name):
     """
     # Assuming having trained and made predictions using a model and have the y_test and y_pred variables available
     cm = confusion_matrix(y_test, y_pred)
-    print(model_name + 'Confusion matrix:')
-    print(cm)
+    logging.info(f'{model_name} Confusion matrix: \n {cm}')
 
 
 def summarize_results(model_name, model_info):
@@ -229,7 +238,7 @@ def summarize_results(model_name, model_info):
     y_proba = model_info['y_proba']
     cm = confusion_matrix(y_test, y_pred)
     accuracy = accuracy_score(y_test, y_pred)
-    report = classification_report(y_test, y_pred)
+    report = classification_report(y_test, y_pred, zero_division=0)
     auc_score = roc_auc_score(y_test, y_proba[:, 1])
 
     summary = f"\n=== {model_name} ===\n\n"

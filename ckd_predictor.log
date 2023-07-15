@@ -1,0 +1,104 @@
+2023-07-16 01:01:45,311 - INFO - Main Started
+2023-07-16 01:01:45,341 - INFO - Data loaded successfully
+2023-07-16 01:01:45,341 - INFO - Section 1 Started
+2023-07-16 01:01:45,354 - INFO - Data split into training and test sets, no validation
+2023-07-16 01:01:45,354 - INFO - Starting data preprocessing
+2023-07-16 01:01:45,354 - INFO - Removing duplicates activated
+2023-07-16 01:01:45,354 - INFO - Data shape before removing duplicates in dataframe 1: (320, 25)
+2023-07-16 01:01:45,362 - INFO - Data shape after removing duplicates in dataframe 1: (320, 25)
+2023-07-16 01:01:45,362 - INFO - Data shape before removing duplicates in dataframe 2: (80, 25)
+2023-07-16 01:01:45,365 - INFO - Data shape after removing duplicates in dataframe 2: (80, 25)
+2023-07-16 01:01:45,365 - INFO - Starting imputation process, filling missing values. columns are:
+2023-07-16 01:01:45,365 - INFO - nominal: ['rbc', 'pc', 'pcc', 'ba', 'htn', 'dm', 'cad', 'appet', 'pe', 'ane', 'class']
+2023-07-16 01:01:45,365 - INFO - numerical: ['age', 'bp', 'sg', 'al', 'su', 'bgr', 'bu', 'sc', 'sod', 'pot', 'hemo', 'pcv', 'wc', 'rc']
+2023-07-16 01:01:45,371 - INFO - Missing values before imputation in dataframe 1: 826
+2023-07-16 01:01:45,385 - INFO - Missing values after imputation in dataframe 1: 0
+2023-07-16 01:01:45,385 - INFO - Missing values before imputation in dataframe 2: 186
+2023-07-16 01:01:45,394 - INFO - Missing values after imputation in dataframe 2: 0
+2023-07-16 01:01:45,394 - INFO - Starting binary transformation
+2023-07-16 01:01:45,401 - INFO - Columns 'rbc, pc, pcc, ba, htn, dm, cad, appet, pe, ane, class' were changed to binary in dataframe number 1.
+2023-07-16 01:01:45,411 - INFO - Columns 'rbc, pc, pcc, ba, htn, dm, cad, appet, pe, ane, class' were changed to binary in dataframe number 2.
+2023-07-16 01:01:45,411 - INFO - After binary transformation - training data:
+2023-07-16 01:01:45,441 - INFO -       age     bp        sg        al        su  ...  cad  appet  pe  ane  class
+3    48.0   70.0  1.005000  4.000000  0.000000  ...    1      0   0    0      1
+18   60.0  100.0  1.025000  0.000000  3.000000  ...    0      1   1    1      1
+202  78.0   60.0  1.017456  0.992958  0.437722  ...    1      1   1    0      1
+250  40.0   80.0  1.025000  0.000000  0.000000  ...    1      1   1    1      0
+274  19.0   80.0  1.020000  0.000000  0.000000  ...    1      1   1    1      0
+
+[5 rows x 25 columns]
+2023-07-16 01:01:45,451 - INFO - Data scaling performed successfully, method used: discretization
+2023-07-16 01:01:45,451 - INFO - Starting feature selection
+2023-07-16 01:01:45,460 - INFO - Feature selection performed successfully, features kept: ['class', 'appet', 'bp', 'bu', 'sg', 'wc', 'pc', 'sc', 'pe', 'hemo', 'ba', 'age', 'bgr', 'ane', 'pcv', 'al', 'pcc', 'su', 'pot', 'cad', 'rbc', 'sod']
+2023-07-16 01:01:45,461 - INFO - Data successfully preprocessed
+2023-07-16 01:01:45,491 - INFO - Models training completed
+2023-07-16 01:01:45,507 - INFO - Results for model Random Forest: 
+ 
+=== Random Forest ===
+
+Confusion Matrix:
+[[26  2]
+ [ 3 49]]
+
+Classification Report:
+              precision    recall  f1-score   support
+
+           0       0.90      0.93      0.91        28
+           1       0.96      0.94      0.95        52
+
+    accuracy                           0.94        80
+   macro avg       0.93      0.94      0.93        80
+weighted avg       0.94      0.94      0.94        80
+
+Accuracy: 0.9375
+Weighted Kappa: 0.8638
+AUC: 0.9904
+
+
+2023-07-16 01:01:45,511 - INFO - Results for model CART: 
+ 
+=== CART ===
+
+Confusion Matrix:
+[[27  1]
+ [ 1 51]]
+
+Classification Report:
+              precision    recall  f1-score   support
+
+           0       0.96      0.96      0.96        28
+           1       0.98      0.98      0.98        52
+
+    accuracy                           0.97        80
+   macro avg       0.97      0.97      0.97        80
+weighted avg       0.97      0.97      0.97        80
+
+Accuracy: 0.9750
+Weighted Kappa: 0.9451
+AUC: 0.9725
+
+
+2023-07-16 01:01:45,521 - INFO - Results for model Naive Baysien: 
+ 
+=== Naive Baysien ===
+
+Confusion Matrix:
+[[28  0]
+ [ 5 47]]
+
+Classification Report:
+              precision    recall  f1-score   support
+
+           0       0.85      1.00      0.92        28
+           1       1.00      0.90      0.95        52
+
+    accuracy                           0.94        80
+   macro avg       0.92      0.95      0.93        80
+weighted avg       0.95      0.94      0.94        80
+
+Accuracy: 0.9375
+Weighted Kappa: 0.8681
+AUC: 0.9945
+
+
+2023-07-16 01:01:45,521 - INFO - Section 1 Ended
